@@ -15,43 +15,16 @@ from datetime import date, timedelta
 import random
 
 def cleanup_test_data():
-    """Clean up test data before running tests - respects foreign key constraints"""
+    """Clean up test data - CASCADE handles child records automatically"""
     print("\n🧹 Cleaning up previous test data...")
     
-    try:
-        # Delete in correct order to respect foreign keys
-        # 1. First, find patient_id for test phone
-        query_find = "SELECT patient_id FROM patients WHERE phone = %s"
-        result = execute_query(query_find, ('9999999999',), fetch=True, fetch_one=True)
-        
-        if result:
-            patient_id = result['patient_id']
-            print(f"   Found existing test patient (ID: {patient_id})")
-            
-            # 2. Delete appointments (references patient)
-            execute_query("DELETE FROM appointments WHERE patient_id = %s", (patient_id,))
-            
-            # 3. Delete predictions (references symptoms)
-            execute_query("""
-                DELETE pred FROM predictions pred
-                INNER JOIN symptoms s ON pred.symptom_id = s.symptom_id
-                WHERE s.patient_id = %s
-            """, (patient_id,))
-            
-            # 4. Delete symptoms (references patient)
-            execute_query("DELETE FROM symptoms WHERE patient_id = %s", (patient_id,))
-            
-            # 5. Finally delete patient
-            execute_query("DELETE FROM patients WHERE patient_id = %s", (patient_id,))
-            
-            print("   ✅ Test data cleaned successfully")
-        else:
-            print("   ℹ️  No previous test data found")
+    # Just delete the patient - CASCADE will handle the rest!
+    result = execute_query("DELETE FROM patients WHERE phone = %s", ('9999999999',))
     
-    except Exception as e:
-        print(f"   ⚠️  Cleanup warning: {e}")
-        print("   Continuing anyway...")
-
+    if result is not None:
+        print("   ✅ Test data cleaned (CASCADE deleted related records)")
+    else:
+        print("   ℹ️  No previous test data found")
 
 def test_complete_flow():
     """Test complete patient journey"""
