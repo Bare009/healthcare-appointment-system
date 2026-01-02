@@ -192,7 +192,7 @@ def test_multiple_patients():
     print("="*60 + "\n")
 
 if __name__ == "__main__":
-    # Run basic test
+    # Run basic test.
     test_complete_flow()
     
     # Optional: Run multi-patient test
