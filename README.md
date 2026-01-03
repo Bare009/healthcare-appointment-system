@@ -1,6 +1,6 @@
 # 🏥 AI-Driven Smart Healthcare & Diagnosis System
 
-A database-driven healthcare appointment system with AI-powered symptom analysis and urgency-based scheduling. This DBMS project demonstrates comprehensive database concepts including normalization (3NF/BCNF), multi-table JOINs, foreign key constraints, indexing, and transaction management across 10 normalized tables.
+A database-driven healthcare appointment system with AI-powered symptom analysis and urgency-based scheduling. 
 
 **Key Features:**
 
