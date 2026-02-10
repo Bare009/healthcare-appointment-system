@@ -107,6 +107,9 @@ with st.sidebar:
     - ✅ Smart doctor assignment
     - ✅ Real-time queue updates
     """)
+    st.divider()
+    st.markdown("### 👨‍⚕️ Are you a Doctor?")
+    st.page_link("pages/2_Doctor_Portal.py", label="🔑 Doctor Login", icon="👨‍⚕️")
 
 # Main form
 st.markdown("## 📝 Patient Registration & Symptom Submission")

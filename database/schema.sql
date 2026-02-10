@@ -103,7 +103,7 @@ CREATE TABLE appointments (
     UNIQUE KEY unique_doctor_slot (doctor_id, appointment_date, appointment_time)
 );
 
---- 8. Medical Records
+-- 8. Medical Records
 CREATE TABLE medical_records (
     record_id INT PRIMARY KEY AUTO_INCREMENT,
     appointment_id INT UNIQUE NOT NULL,

@@ -300,6 +300,85 @@ def get_appointment_statistics():
     
     return stats
 
+def get_appointments_by_doctor(doctor_id, date_filter=None, status_filter=None):
+    """
+    Fetch appointments assigned to a specific doctor
+    
+    Args:
+        doctor_id (int): Doctor ID
+        date_filter (date): Filter by specific date (optional)
+        status_filter (str): Filter by status (optional)
+    
+    Returns:
+        list: Appointment records for the doctor
+    """
+    query = """
+    SELECT 
+        a.appointment_id,
+        a.appointment_date,
+        a.appointment_time,
+        a.status,
+        a.mode,
+        a.urgency_level,
+        p.patient_id,
+        p.full_name AS patient_name,
+        p.age,
+        p.gender,
+        p.phone,
+        p.allergies,
+        s.symptom_text,
+        pred.predicted_disease,
+        pred.probability,
+        pred.urgency_reason,
+        d.name AS doctor_name,
+        d.qualification,
+        spec.spec_name AS specialization,
+        CONCAT('APT-', LPAD(a.appointment_id, 3, '0')) AS appointment_code
+    FROM appointments a
+    INNER JOIN patients p ON a.patient_id = p.patient_id
+    INNER JOIN symptoms s ON a.symptom_id = s.symptom_id
+    INNER JOIN predictions pred ON s.symptom_id = pred.symptom_id
+    INNER JOIN doctors d ON a.doctor_id = d.doctor_id
+    INNER JOIN specializations spec ON d.spec_id = spec.spec_id
+    WHERE a.doctor_id = %s
+    """
+    
+    params = [doctor_id]
+    
+    if date_filter:
+        query += " AND a.appointment_date = %s"
+        params.append(date_filter)
+    
+    if status_filter and status_filter != 'All':
+        query += " AND a.status = %s"
+        params.append(status_filter)
+    
+    query += " ORDER BY a.urgency_level DESC, a.appointment_date ASC, a.appointment_time ASC"
+    
+    results = execute_query(query, tuple(params), fetch=True)
+    return results or []
+
+
+def get_doctor_by_name(doctor_name):
+    """
+    Fetch doctor details by name
+    
+    Args:
+        doctor_name (str): Doctor name (with or without 'Dr.' prefix)
+    
+    Returns:
+        dict: Doctor record or None
+    """
+    query = """
+    SELECT d.doctor_id, d.name, d.phone, d.qualification, 
+           d.experience_years, s.spec_name AS specialization
+    FROM doctors d
+    INNER JOIN specializations s ON d.spec_id = s.spec_id
+    WHERE d.name = %s
+    """
+    return execute_query(query, (doctor_name,), fetch=True, fetch_one=True)
+
+
 def get_all_specializations():
     """
     Get list of all specializations (for dropdown)
