@@ -5,6 +5,12 @@ Handles all patient-related database operations
 
 from database.connection import execute_query
 from datetime import date
+import hashlib
+
+
+def _hash_password(password):
+    """Simple SHA-256 hash for lab project."""
+    return hashlib.sha256(password.encode()).hexdigest()
 
 def create_patient(first_name, last_name, gender, age, phone, allergies=None):
     """
@@ -127,3 +133,33 @@ def get_patient_statistics():
                                                  fetch=True)
     
     return stats
+
+
+def set_patient_password(patient_id, password):
+    """Set a hashed password for patient login."""
+    hashed = _hash_password(password)
+    query = "UPDATE patients SET password_hash = %s WHERE patient_id = %s"
+    return execute_query(query, (hashed, patient_id)) is not None
+
+
+def verify_patient_login(phone, password):
+    """
+    Verify patient credentials.
+    Returns patient dict on success, None on failure.
+    """
+    hashed = _hash_password(password)
+    query = """
+    SELECT patient_id, first_name, last_name, full_name, gender, age, phone, allergies
+    FROM patients
+    WHERE phone = %s AND password_hash = %s
+    """
+    return execute_query(query, (phone, hashed), fetch=True, fetch_one=True)
+
+
+def patient_has_password(phone):
+    """Check if patient has a password set."""
+    query = "SELECT password_hash FROM patients WHERE phone = %s"
+    result = execute_query(query, (phone,), fetch=True, fetch_one=True)
+    if result and result.get('password_hash'):
+        return True
+    return False

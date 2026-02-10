@@ -13,6 +13,7 @@ from services.appointment_service import (
     save_prediction, find_available_doctor, create_appointment,
     get_all_specializations
 )
+from services.audit_service import log_action
 
 # Page configuration
 st.set_page_config(
@@ -106,10 +107,17 @@ with st.sidebar:
     - ✅ Urgency-based scheduling
     - ✅ Smart doctor assignment
     - ✅ Real-time queue updates
+    - ✅ Post-consultation records
+    - ✅ Patient portal & history
+    - ✅ Analytics dashboard
+    - ✅ Audit trail (triggers)
     """)
     st.divider()
-    st.markdown("### 👨‍⚕️ Are you a Doctor?")
-    st.page_link("pages/2_Doctor_Portal.py", label="🔑 Doctor Login", icon="👨‍⚕️")
+    st.markdown("### 🔗 Quick Links")
+    st.page_link("pages/2_Doctor_Portal.py", label="👨‍⚕️ Doctor Portal", icon="👨‍⚕️")
+    st.page_link("pages/3_Patient_Portal.py", label="👤 Patient Portal", icon="👤")
+    st.page_link("pages/4_Analytics.py", label="📊 Analytics", icon="📊")
+    st.page_link("pages/5_Audit_Log.py", label="📝 Audit Log", icon="📝")
 
 # Main form
 st.markdown("## 📝 Patient Registration & Symptom Submission")
@@ -212,6 +220,10 @@ if submitted:
                 st.error("❌ Failed to create patient record. Phone number may already exist.")
                 st.stop()
             
+            log_action('INSERT', 'patients', patient_id, 'system',
+                       new_values=f'name={first_name} {last_name}, phone={phone}',
+                       description=f'New patient registered: {first_name} {last_name}')
+            
             # Step 2: Save symptom
             status_text.text("Step 2/5: Recording symptoms...")
             progress_bar.progress(40)
@@ -262,6 +274,10 @@ if submitted:
                 appointment_date=appointment_date,
                 mode=consultation_mode
             )
+            
+            log_action('INSERT', 'appointments', appointment_id, 'system',
+                       new_values=f'patient_id={patient_id}, doctor={doctor["name"]}, urgency={diagnosis["urgency_level"]}',
+                       description=f'Appointment APT-{appointment_id:03d} booked')
             
             progress_bar.progress(100)
             status_text.text("✅ Complete!")
@@ -356,11 +372,11 @@ st.markdown("---")
 col_f1, col_f2, col_f3 = st.columns(3)
 
 with col_f1:
-    st.metric("📊 Database Tables", "10")
+    st.metric("📊 Database Tables", "11")
 with col_f2:
-    st.metric("🔗 Foreign Keys", "8")
+    st.metric("🔗 Foreign Keys", "8+")
 with col_f3:
-    st.metric("🤖 AI Model", "Gemini 1.5")
+    st.metric("🤖 AI Model", "Gemini 2.5")
 
 st.markdown("""
 <div style='text-align: center; color: #666; padding: 2rem 0;'>

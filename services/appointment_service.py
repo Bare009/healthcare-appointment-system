@@ -379,6 +379,74 @@ def get_doctor_by_name(doctor_name):
     return execute_query(query, (doctor_name,), fetch=True, fetch_one=True)
 
 
+def update_appointment_status(appointment_id, new_status):
+    """Update appointment status (Confirmed → Completed / Cancelled / No-show)."""
+    query = "UPDATE appointments SET status = %s WHERE appointment_id = %s"
+    result = execute_query(query, (new_status, appointment_id))
+    return result is not None
+
+
+def cancel_appointment(appointment_id):
+    """Cancel an appointment (patient action) with rollback safety."""
+    return update_appointment_status(appointment_id, 'Cancelled')
+
+
+def get_patient_appointments(patient_id):
+    """
+    Fetch all appointments for a patient with full details.
+    Demonstrates multi-table JOIN from patient perspective.
+    """
+    query = """
+    SELECT 
+        a.appointment_id,
+        a.appointment_date,
+        a.appointment_time,
+        a.status,
+        a.mode,
+        a.urgency_level,
+        a.created_at,
+        d.name AS doctor_name,
+        d.qualification,
+        spec.spec_name AS specialization,
+        s.symptom_text,
+        pred.predicted_disease,
+        pred.probability,
+        pred.urgency_reason,
+        CONCAT('APT-', LPAD(a.appointment_id, 3, '0')) AS appointment_code,
+        mr.record_id,
+        mr.diagnosis AS final_diagnosis,
+        mr.notes AS doctor_notes
+    FROM appointments a
+    INNER JOIN doctors d ON a.doctor_id = d.doctor_id
+    INNER JOIN specializations spec ON d.spec_id = spec.spec_id
+    INNER JOIN symptoms s ON a.symptom_id = s.symptom_id
+    INNER JOIN predictions pred ON s.symptom_id = pred.symptom_id
+    LEFT JOIN medical_records mr ON a.appointment_id = mr.appointment_id
+    WHERE a.patient_id = %s
+    ORDER BY a.appointment_date DESC, a.appointment_time DESC
+    """
+    return execute_query(query, (patient_id,), fetch=True) or []
+
+
+def reschedule_appointment(appointment_id, new_date, new_time=None):
+    """Reschedule an appointment to a new date/time."""
+    if new_time:
+        query = """
+        UPDATE appointments 
+        SET appointment_date = %s, appointment_time = %s
+        WHERE appointment_id = %s AND status IN ('Confirmed', 'Pending')
+        """
+        result = execute_query(query, (new_date, new_time, appointment_id))
+    else:
+        query = """
+        UPDATE appointments 
+        SET appointment_date = %s
+        WHERE appointment_id = %s AND status IN ('Confirmed', 'Pending')
+        """
+        result = execute_query(query, (new_date, appointment_id))
+    return result is not None
+
+
 def get_all_specializations():
     """
     Get list of all specializations (for dropdown)

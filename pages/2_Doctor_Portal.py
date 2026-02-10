@@ -7,8 +7,14 @@ import streamlit as st
 from datetime import date, timedelta
 from database.connection import initialize_pool
 from services.appointment_service import (
-    get_appointments_by_doctor, get_doctor_by_name
+    get_appointments_by_doctor, get_doctor_by_name, update_appointment_status
 )
+from services.medical_service import (
+    create_medical_record, add_prescriptions_bulk,
+    get_medical_record_by_appointment, get_prescriptions_by_appointment,
+    get_doctor_avg_rating
+)
+from services.audit_service import log_action
 from services.gemini_service import get_urgency_label, get_urgency_color
 
 # Page config
@@ -273,7 +279,8 @@ if not appointments:
     st.info("ℹ️ No appointments found for the selected filters.")
 else:
     if view_mode == "Cards":
-        for apt in appointments:
+        for idx, apt in enumerate(appointments):
+            aid = apt['appointment_id']
             urg = apt['urgency_level']
             if urg >= 8:
                 card_cls, urg_icon = "apt-high", "🔴"
@@ -309,6 +316,90 @@ else:
                         st.markdown(f"**Urgency Reason:** {apt['urgency_reason']}")
                         st.markdown(f"**📅 Date:** {apt['appointment_date']}")
                         st.markdown(f"**🕐 Time:** {apt['appointment_time']}")
+
+                # ── Status Update Buttons ──
+                if apt['status'] in ('Confirmed', 'Pending'):
+                    st.markdown("---")
+                    act1, act2, act3 = st.columns(3)
+                    with act1:
+                        if st.button("✅ Mark Completed", key=f"comp_{aid}", use_container_width=True):
+                            update_appointment_status(aid, 'Completed')
+                            log_action('UPDATE', 'appointments', aid,
+                                       st.session_state.doctor_name,
+                                       f'status={apt["status"]}', 'status=Completed',
+                                       f'{apt["appointment_code"]} marked Completed')
+                            st.rerun()
+                    with act2:
+                        if st.button("❌ Cancel", key=f"cancel_{aid}", use_container_width=True):
+                            update_appointment_status(aid, 'Cancelled')
+                            log_action('UPDATE', 'appointments', aid,
+                                       st.session_state.doctor_name,
+                                       f'status={apt["status"]}', 'status=Cancelled',
+                                       f'{apt["appointment_code"]} cancelled by doctor')
+                            st.rerun()
+                    with act3:
+                        if st.button("🚫 No-show", key=f"noshow_{aid}", use_container_width=True):
+                            update_appointment_status(aid, 'Cancelled')
+                            log_action('UPDATE', 'appointments', aid,
+                                       st.session_state.doctor_name,
+                                       f'status={apt["status"]}', 'status=Cancelled',
+                                       f'{apt["appointment_code"]} marked No-show')
+                            st.rerun()
+
+                # ── Post-Consultation (only for Completed) ──
+                if apt['status'] == 'Completed':
+                    existing_record = get_medical_record_by_appointment(aid)
+                    if existing_record:
+                        with st.expander("📋 View Medical Record & Prescriptions"):
+                            st.success(f"**Final Diagnosis:** {existing_record['diagnosis']}")
+                            if existing_record.get('notes'):
+                                st.info(f"**Notes:** {existing_record['notes']}")
+                            prescriptions = get_prescriptions_by_appointment(aid)
+                            if prescriptions:
+                                st.markdown("**💊 Prescriptions:**")
+                                for rx in prescriptions:
+                                    st.markdown(f"- **{rx['medicine_name']}** — {rx['dosage']} — {rx['duration']}")
+                            else:
+                                st.caption("No prescriptions added.")
+                    else:
+                        with st.expander("📝 Add Medical Record & Prescription"):
+                            with st.form(key=f"record_form_{aid}"):
+                                final_diag = st.text_area("Final Diagnosis *", key=f"diag_{aid}",
+                                                          placeholder="Enter your final diagnosis after consultation")
+                                doc_notes = st.text_area("Doctor Notes", key=f"notes_{aid}",
+                                                         placeholder="Additional observations (optional)")
+                                st.markdown("**💊 Prescriptions** (up to 5)")
+                                rx_list = []
+                                for i in range(1, 6):
+                                    rc1, rc2, rc3 = st.columns(3)
+                                    with rc1:
+                                        med = st.text_input(f"Medicine {i}", key=f"med_{aid}_{i}")
+                                    with rc2:
+                                        dos = st.text_input(f"Dosage {i}", key=f"dos_{aid}_{i}",
+                                                            placeholder="e.g. 500mg")
+                                    with rc3:
+                                        dur = st.text_input(f"Duration {i}", key=f"dur_{aid}_{i}",
+                                                            placeholder="e.g. 7 days")
+                                    if med:
+                                        rx_list.append({'medicine_name': med, 'dosage': dos, 'duration': dur})
+
+                                submit_record = st.form_submit_button("💾 Save Medical Record",
+                                                                      use_container_width=True, type="primary")
+                            if submit_record:
+                                if not final_diag.strip():
+                                    st.error("❌ Final diagnosis is required.")
+                                else:
+                                    record_id = create_medical_record(aid, final_diag.strip(), doc_notes.strip())
+                                    if record_id:
+                                        if rx_list:
+                                            add_prescriptions_bulk(record_id, rx_list)
+                                        log_action('INSERT', 'medical_records', record_id,
+                                                   st.session_state.doctor_name,
+                                                   description=f'Medical record created for {apt["appointment_code"]}')
+                                        st.success("✅ Medical record saved!")
+                                        st.rerun()
+                                    else:
+                                        st.error("❌ Failed to save medical record.")
 
                 st.markdown('</div>', unsafe_allow_html=True)
 
